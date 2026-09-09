@@ -16,18 +16,25 @@ In the following examples, we will be using the following versions:
 <!--/codeinclude-->
 
 From Elasticsearch 8 onwards, security and HTTPS are enabled by default. You can start a container and talk to it
-with the REST client as follows:
+with the [Elasticsearch Java API Client](https://www.elastic.co/docs/reference/elasticsearch/clients/java) 9.5.x
+(`co.elastic.clients:elasticsearch-java`), which requires Java 17 or later.
+
+The examples below share one Elasticsearch + Kibana pair started once per test class:
 
 <!--codeinclude-->
-[HttpClient](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchContainerTest.java) inside_block:httpClientLatest
+[Start Elasticsearch and Kibana](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchJavaClientTest.java) inside_block:elasticsearchAndKibana
+[Elasticsearch Java client](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchJavaClientTest.java) inside_block:elasticsearchJavaClient
 <!--/codeinclude-->
+
+The client is created from the container HTTP address, the CA certificate exposed by
+`createSslContextFromCa()`, and the default `elastic` password.
 
 ### Disable TLS
 
-HTTPS can be turned off if you do not need it:
+HTTPS can be turned off if you do not need it. In that case, omit `sslContext()` and use `http://`:
 
 <!--codeinclude-->
-[HttpClient with TLS disabled](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchContainerTest.java) inside_block:httpClientTlsDisabled
+[Elasticsearch Java client with TLS disabled](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchContainerTest.java) inside_block:elasticsearchJavaClientTlsDisabled
 <!--/codeinclude-->
 
 ### Elasticsearch 7 (deprecated)
@@ -83,13 +90,27 @@ In external mode, `KibanaContainer` connects to an external Elasticsearch instan
 For external mode with HTTPS, use `withElasticsearchCaCertificate()` to provide the CA certificate.
 You can authenticate using either username/password (`withElasticsearchCredentials()`) or service account tokens (`withElasticsearchServiceAccountToken()`).
 
+### Dashboard as code
+
+Once Kibana is running, you can index documents with the Elasticsearch Java client and
+[create a dashboard programmatically](https://www.elastic.co/docs/explore-analyze/dashboards/create-dashboards-programmatically)
+through the Kibana HTTP API (data view + dashboard with an ES|QL metric visualization):
+
+<!--codeinclude-->
+[Create a Kibana dashboard](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchJavaClientTest.java) inside_block:kibanaDashboardAsCode
+[Kibana HTTP helper](../../modules/elasticsearch/src/test/java/org/testcontainers/elasticsearch/ElasticsearchJavaClientTest.java) inside_block:kibanaHttpHelper
+<!--/codeinclude-->
+
 ## Adding this module to your project dependencies
 
-Add the following dependency to your `pom.xml`/`build.gradle` file:
+Add the following dependency to your `pom.xml`/`build.gradle` file.
+The `elasticsearch-java` artifact is only needed if you use the official Java API Client
+shown above (Java 17+). Align that client version with your Elasticsearch version.
 
 === "Gradle"
     ```groovy
     testImplementation "org.testcontainers:testcontainers-elasticsearch:{{latest_version}}"
+    testImplementation "co.elastic.clients:elasticsearch-java:9.5.2"
     ```
 
 === "Maven"
@@ -98,6 +119,12 @@ Add the following dependency to your `pom.xml`/`build.gradle` file:
         <groupId>org.testcontainers</groupId>
         <artifactId>testcontainers-elasticsearch</artifactId>
         <version>{{latest_version}}</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>co.elastic.clients</groupId>
+        <artifactId>elasticsearch-java</artifactId>
+        <version>9.5.2</version>
         <scope>test</scope>
     </dependency>
     ```

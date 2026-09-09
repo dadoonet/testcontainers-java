@@ -1,5 +1,8 @@
 package org.testcontainers.elasticsearch;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.HealthStatus;
+import co.elastic.clients.elasticsearch.cluster.HealthResponse;
 import com.github.dockerjava.api.DockerClient;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
@@ -159,38 +162,29 @@ class ElasticsearchContainerTest {
 
     @Test
     void latestCanDisableTls() throws IOException {
-        // httpClientTlsDisabled {
-        // Create the elasticsearch container.
+        // elasticsearchJavaClientTlsDisabled {
         try (
             ElasticsearchContainer container = new ElasticsearchContainer(ELASTICSEARCH_IMAGE_LATEST)
-                // disable SSL
                 .withEnv("xpack.security.transport.ssl.enabled", "false")
                 .withEnv("xpack.security.http.ssl.enabled", "false")
         ) {
-            // Start the container. This step might take some time...
             container.start();
 
-            // Do whatever you want with the rest client ...
-            final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            credentialsProvider.setCredentials(
-                AuthScope.ANY,
-                new UsernamePasswordCredentials(ELASTICSEARCH_USERNAME, ELASTICSEARCH_PASSWORD)
-            );
-
-            client =
-                RestClient
-                    .builder(HttpHost.create(container.getHttpHostAddress()))
-                    .setHttpClientConfigCallback(httpClientBuilder -> {
-                        return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
-                    })
-                    .build();
-
-            Response response = client.performRequest(new Request("GET", "/_cluster/health"));
-            // }}
-            assertThat(response.getStatusLine().getStatusCode()).as("cluster health is available").isEqualTo(200);
-            assertThat(EntityUtils.toString(response.getEntity())).contains("cluster_name");
-            assertThat(container.getHttpScheme()).as("HTTP API uses HTTP when TLS is disabled").isEqualTo("http");
-            // httpClientTlsDisabled {{
+            try (
+                ElasticsearchClient esClient = ElasticsearchClient.of(b -> {
+                    return b
+                        .host("http://" + container.getHttpHostAddress())
+                        .usernameAndPassword(ELASTICSEARCH_USERNAME, ELASTICSEARCH_PASSWORD);
+                })
+            ) {
+                HealthResponse health = esClient.cluster().health();
+                // }}
+                assertThat(health.status())
+                    .as("cluster health is at least yellow")
+                    .isIn(HealthStatus.Yellow, HealthStatus.Green);
+                assertThat(container.getHttpScheme()).as("HTTP API uses HTTP when TLS is disabled").isEqualTo("http");
+                // elasticsearchJavaClientTlsDisabled {{
+            }
         }
         // }
     }
